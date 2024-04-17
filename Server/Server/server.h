@@ -34,7 +34,7 @@ private:
     QSqlDatabase db;
     QSqlQuery* query;
     QByteArray Data;
-    void SendToClient(QString str);
+    void SendToClient(bool check);
     quint16 nextBlockSize;
 
 

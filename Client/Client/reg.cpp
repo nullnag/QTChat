@@ -1,6 +1,6 @@
 #include "reg.h"
 #include "ui_reg.h"
-
+#include <QMessageBox>
 Reg::Reg(QWidget *parent)
 
     : QDialog(parent)
@@ -9,6 +9,7 @@ Reg::Reg(QWidget *parent)
 
     ui->setupUi(this);
     socket.connectToHost("127.0.0.1",4444);
+    connect(&socket,&QTcpSocket::readyRead,this, &Reg::sockReady);
 }
 
 Reg::~Reg()
@@ -16,8 +17,22 @@ Reg::~Reg()
     delete ui;
 }
 
+void Reg::sockReady(){
+    Data.clear();
+    Data = socket.readAll();
+    QDataStream stream(&Data,QIODevice::ReadOnly);
+    bool check;
+    stream >> check;
+    if (check == 1){
+        QMessageBox::information(nullptr,"Ошибка","Данный логин уже существует");
+        this->LoginCheck = 0;
+        SignUpButtonEn(this->LoginCheck, this->PassCheck);
+    }
+}
+
 void Reg::on_Login_textEdited(const QString &arg1)
 {
+
     this->Login = arg1;
     if (arg1.length() >= 6){
         this->LoginCheck = 1;
@@ -25,6 +40,12 @@ void Reg::on_Login_textEdited(const QString &arg1)
     else{
         this->LoginCheck = 0;
     }
+    Data.clear();
+    QDataStream request(&Data,QIODevice::WriteOnly);
+    request << 3 << this->Login;
+    socket.write(Data);
+    socket.flush();
+    socket.waitForBytesWritten();
     SignUpButtonEn(this->LoginCheck, this->PassCheck);
 }
 
@@ -73,11 +94,21 @@ void Reg::on_CancleButton_clicked()
 void Reg::on_SignUpButton_pressed()
 {
     if (socket.waitForConnected()){
-        QString data = this->Login + ":" + this->pass1;
-        socket.write(data.toUtf8());
+        Data.clear();
+        QDataStream stream(&Data, QIODevice::WriteOnly);
+        stream << 2 << this->Login << this->pass2;
+        socket.write(Data);
+        socket.flush();
+        socket.waitForBytesWritten();
+        QMessageBox::information(nullptr,"Успешная регистрация","Вы успешно зарегистрировались");
+        close();
+        socket.disconnectFromHost();
     }
     else{
         qDebug() << "error";
     }
 }
+
+
+
 

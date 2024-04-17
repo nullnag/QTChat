@@ -2,7 +2,7 @@
 
 DBServer::DBServer(){
     db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName("C:/Program Files (x86)/qt/SQLCHAT/users.db");
+    db.setDatabaseName("C:/Users/boiko/Desktop/d/users.db");
     if (db.open()){
         qDebug() << "open database";
     }
@@ -24,25 +24,57 @@ DBServer::DBServer(){
 void DBServer::incomingConnection(qintptr socketDescriptor){
     socket = new QTcpSocket;
     socket->setSocketDescriptor(socketDescriptor);
-    connect(socket,&QTcpSocket::readyRead,this, &Server::sockReady);
-    connect(socket,&QTcpSocket::disconnected,this,&Server::sockDisc);
+    connect(socket,&QTcpSocket::readyRead,this, &DBServer::sockReady);
+    connect(socket,&QTcpSocket::disconnected,this,&DBServer::sockDisc);
     qDebug() << socketDescriptor << " connected 2";
 }
 void DBServer::sockReady(){
+    Data.clear();
+    QString username, password;
+    Data = socket->readAll();
+    QDataStream stream(&Data, QIODevice::ReadOnly);
+    qint32 requestNum;
+    stream >> requestNum >> username >> password;
+    switch (requestNum){
+        case 2:
+            qDebug() << "2";
+            qDebug() << username;
+            qDebug() << password;
 
-    this->Data = socket->readAll();
-    QList<QByteArray> parts = Data.split(':');
-    QString login = parts[0];
-    QString password = parts[1];
-    this->query->prepare("INSERT INTO users (username,password) VALUES(:username, :password)");
-    this->query->bindValue(":username",login);
-    this->query->bindValue(":password",password);
-    if (!this->query->exec()) {
-        qDebug() << "Ошибка выполнения запроса:";
-    } else {
-        qDebug() << "Данные успешно записаны в базу данных";
-    }
+            this->query->prepare("INSERT INTO users (username,password) VALUES(:username, :password)");
+            this->query->bindValue(":username",username);
+            this->query->bindValue(":password",password);
+            if (!this->query->exec()) {
+                qDebug() << "Ошибка выполнения запроса:";
+            } else {
+                qDebug() << "Данные успешно записаны в базу данных";
+            }
+            break;
+        case 3:
+            qDebug() << username;
+            this->query->prepare("SELECT COUNT(*) FROM users WHERE username = :username");
+            this->query->bindValue(":username",username);
+            if (!query->exec()) {
+                qDebug() << "Ошибка при выполнении запроса:";
+            }
+            if (this->query->next()){
+                int count = this->query->value(0).toInt();
+                DBServer::SendToClient(count > 0);
+                qDebug() << count;
+            }
+
+            break;
+    };
+
 }
+
+void DBServer::SendToClient(bool check){
+    Data.clear();
+    QDataStream stream(&Data, QIODevice::WriteOnly);
+    stream << check;
+    socket->write(Data);
+}
+
 void DBServer::sockDisc(){
     qDebug() << "disc 2";
     socket->deleteLater();
