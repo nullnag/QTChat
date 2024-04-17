@@ -20,6 +20,8 @@ private:
     bool LoginCheck = 0;
     QString pass1 = "";
     QString pass2 = "";
+    QByteArray Data;
+    QByteArray requestData;
     QString Login = "";
 private slots:
     void on_Login_textEdited(const QString &arg1);
@@ -33,6 +35,9 @@ private slots:
     void on_CancleButton_clicked();
 
     void on_SignUpButton_pressed();
+
+
+    void sockReady();
 
 private:
     Ui::Reg *ui;
