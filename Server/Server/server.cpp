@@ -27,19 +27,40 @@ void DBServer::incomingConnection(qintptr socketDescriptor){
     connect(socket,&QTcpSocket::readyRead,this, &DBServer::sockReady);
     connect(socket,&QTcpSocket::disconnected,this,&DBServer::sockDisc);
     qDebug() << socketDescriptor << " connected 2";
+    qDebug() << socket;
+}
+void DBServer::sockDisc(){
+    qDebug() << "disc 2" << socket;
+    QTcpSocket* disconnectedSocket = qobject_cast<QTcpSocket*>(sender());
+    disconnectedSocket->deleteLater();
 }
 void DBServer::sockReady(){
+
     Data.clear();
     QString username, password;
     Data = socket->readAll();
     QDataStream stream(&Data, QIODevice::ReadOnly);
     qint32 requestNum;
     stream >> requestNum >> username >> password;
+    qDebug() << requestNum;
     switch (requestNum){
-        case 2:
-            qDebug() << "2";
+        case 1:
             qDebug() << username;
             qDebug() << password;
+            this->query->prepare("SELECT COUNT(*) FROM users WHERE username = :username AND password = :password");
+            this->query->bindValue(":username", username);
+            this->query->bindValue(":password",password);
+            if (!query->exec()){
+                qDebug() << "Ошибка выполнения запроса";
+            }
+            if (this->query->next()){
+                int count = this->query->value(0).toInt();
+                DBServer::SendToClient(count > 0,1);
+                qDebug() << count;
+            }
+            break;
+
+        case 2:
 
             this->query->prepare("INSERT INTO users (username,password) VALUES(:username, :password)");
             this->query->bindValue(":username",username);
@@ -59,25 +80,23 @@ void DBServer::sockReady(){
             }
             if (this->query->next()){
                 int count = this->query->value(0).toInt();
-                DBServer::SendToClient(count > 0);
+                DBServer::SendToClient(count > 0,3);
                 qDebug() << count;
             }
 
+            break;
+        default:
             break;
     };
 
 }
 
-void DBServer::SendToClient(bool check){
+void DBServer::SendToClient(bool check,qint32 requestNum){
     Data.clear();
+    qDebug() << requestNum;
     QDataStream stream(&Data, QIODevice::WriteOnly);
-    stream << check;
+    stream << check << requestNum;
     socket->write(Data);
-}
-
-void DBServer::sockDisc(){
-    qDebug() << "disc 2";
-    socket->deleteLater();
 }
 
 Server::Server(){
