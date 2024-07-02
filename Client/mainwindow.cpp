@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-
+#include <QListWidget>
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -9,66 +9,90 @@ MainWindow::MainWindow(QWidget *parent)
     socket = new QTcpSocket(this);
     connect(socket, &QTcpSocket::readyRead,this, &MainWindow::sockReady);
     connect(socket,&QTcpSocket::disconnected,socket, &QTcpSocket::deleteLater);
-    nextBlockSize = 0;
 }
 
 MainWindow::~MainWindow()
 {
+    delete socket;
     delete ui;
+}
+
+
+void MainWindow::LoginWrite(QString login){
+    this->Login = login;
 }
 
 void MainWindow::on_pushButton_clicked()
 {
     socket->connectToHost("26.103.198.212",5555);
+    Data.clear();
+    QDataStream out(&Data, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Version());
+    out << 1 << Login;
+    socket->write(Data);
 }
 
-void MainWindow::SendToServer(QString str)
+void MainWindow::SendToServer(QString str, QString ChosenUser)
 {
     Data.clear();
     QDataStream out(&Data, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Version());
-    out << quint16(0) << str;
-    out.device()->seek(0);
-    out << quint16(Data.size() - sizeof(quint16));
+    out << 2 << str << ChosenUser;
     socket->write(Data);
     ui->lineEdit->clear();
 }
 
 void MainWindow::sockReady()
 {
+    qDebug() << "get";
     QDataStream in(socket);
     in.setVersion(QDataStream::Version());
-    if(in.status() == QDataStream::Ok){
-        for (;;){
-            if (nextBlockSize == 0){
-                if (socket->bytesAvailable() < 2){
-                    break;
-                }
-                in >> nextBlockSize;
+    qint32 requestNum = 0;
+    QString str = "";
+    QSet<QString> Users = {};
+
+    in >> requestNum;
+    qDebug() << requestNum << " Текущий процесс";
+    switch (requestNum) {
+    case 1:
+        in >> Users;
+        ui->listWidget->clear();
+        for (auto it = Users.constBegin(); it != Users.constEnd(); ++it) {
+            qDebug() << *it << " ";
+            if (*it == Login){
+                ui->NickNameBar->append(*it);
+                continue;
             }
-            if (socket->bytesAvailable() < nextBlockSize){
-                break;
-            }
-            QString str;
-            in >> str;
-            nextBlockSize = 0;
-            ui->textBrowser->append(str);
+            new QListWidgetItem(*it, ui->listWidget);
         }
-    }
-    else{
-        ui->textBrowser->append("error");
+        break;
+    case 2:
+        in >> str;
+        qDebug() << str;
+        ui->textBrowser->append(str);
+        break;
+    default:
+        break;
     }
 }
-
 
 void MainWindow::on_pushButton_2_clicked()
 {
-    SendToServer(ui->lineEdit->text());
-}
+    if (ui->lineEdit->text().length() > 0 && ChosenUser.length() != 0){
+        SendToServer( Login + '\n' + ui->lineEdit->text() + '\n',ChosenUser);
+    }
 
+}
 
 void MainWindow::on_lineEdit_returnPressed()
 {
-    SendToServer(ui->lineEdit->text());
+    if (ui->lineEdit->text().length() > 0 && ChosenUser.length() != 0){
+        SendToServer( Login + '\n' + ui->lineEdit->text() + '\n', ChosenUser);
+    }
+}
+
+void MainWindow::on_listWidget_itemClicked(QListWidgetItem *item)
+{
+    ChosenUser = item->text();
 }
 

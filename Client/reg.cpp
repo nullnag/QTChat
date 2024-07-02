@@ -17,6 +17,7 @@ Reg::Reg(QTcpSocket* socket,QWidget *parent)
 Reg::~Reg()
 {
     delete ui;
+    delete socket;
 }
 
 void Reg::sockReady(){
