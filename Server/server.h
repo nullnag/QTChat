@@ -4,10 +4,20 @@
 #include <QTcpSocket>
 #include <QVector>
 #include <QSqlDatabase>
+#include <QFile>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QDateTime>
 #include <QSqlQuery>
 #include <QMap>
 #include <QSet>
 
+struct Message {
+    QString sender;
+    QString receiver;
+    QString content;
+};
 
 class Server : public QTcpServer{
     Q_OBJECT;
@@ -16,6 +26,7 @@ public:
     ~Server();
     QTcpSocket* socket;
 private:
+    QList<Message> messages;
     QByteArray Data;
     QString Login;
     QMap<QTcpSocket*,QString> Sockets;
@@ -24,11 +35,17 @@ private:
     QSet<QString> AllowUsers;
 
 public slots:
+    void SaveMessages();
+    void loadMessages();
     void incomingConnection(qintptr socketDescriptor);
+    void UpdateMessages(QTcpSocket* senderSock, QString sender, QString reciever);
     virtual void sockReady();
     virtual void sockDisc();
-    void SendAllowClients(QTcpSocket* Socket, QString Login);
+    void SendAllowClients(QMap<QTcpSocket*,QString> Sockets);
 };
+
+
+
 class DBServer : public Server{
     Q_OBJECT;
 public:
@@ -37,6 +54,7 @@ public:
     QTcpSocket* clientSocket;
     QSet<QTcpSocket*>* clientSockets;
 private:
+
     QSqlDatabase db;
     QMap <qintptr, QTcpSocket*> clients;
     QSqlQuery* query;
