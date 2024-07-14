@@ -32,7 +32,6 @@ void DBServer::incomingConnection(qintptr socketDescriptor){
     qDebug() << this->clientSocket;
 }
 void DBServer::sockDisc(){
-    qDebug() << "disc 2" << this->clientSocket;
     QTcpSocket* disconnectedSocketDB = qobject_cast<QTcpSocket*>(sender());
     if (disconnectedSocketDB) {
         qDebug() << "Disconnected socket:" << disconnectedSocketDB;
@@ -49,7 +48,7 @@ void DBServer::sockReady(){
     QString username, password;
     Data = clientSocket->readAll();
     QDataStream stream(&Data, QIODevice::ReadOnly);
-    qint32 requestNum;
+    qint32 requestNum = 0;
     stream >> requestNum >> username >> password;
     qDebug() << requestNum << " RequestID";
     switch (requestNum){
@@ -108,13 +107,14 @@ void DBServer::SendToClient(bool check,qint32 requestNum, QTcpSocket* clientSock
 }
 
 Server::Server(){
+
     if (this->listen(QHostAddress::Any, 5555)){
         qDebug() << "listen 5555";
     }
     else{
         qDebug() << "error 5555";
     }
-    nextBlockSize = 0;
+    loadMessages();
 }
 void Server::incomingConnection(qintptr socketDescriptor){
     socket = new QTcpSocket;
@@ -129,6 +129,7 @@ void Server::incomingConnection(qintptr socketDescriptor){
 void Server::sockReady(){
     QTcpSocket* socket = (QTcpSocket*)sender();
     if (!socket) return;
+    QString sender;
     qint32 requestNum = 0;
     QVector<QTcpSocket*> messagingUsers = {};
     QDataStream in(socket);
@@ -138,35 +139,86 @@ void Server::sockReady(){
     in >> requestNum >> str >> ChosenUser;
     qDebug() << requestNum << "Текущий процесс";
     switch (requestNum) {
-        case 1:
-            Sockets[socket] = str;
-            for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
-                SendAllowClients(it.key(), it.value());
+    case 3:
+        UpdateMessages(socket, str, ChosenUser);
+        break;
+    case 1:
+        Sockets[socket] = str;
+        for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
+            this->AllowUsers.insert(it.value());
+        }
+        SendAllowClients(Sockets);
+        break;
+    case 2:
+        for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
+            if (it.value() == ChosenUser){
+                messagingUsers.append(it.key());
+                messagingUsers.append(socket);
             }
-            break;
-        case 2:
-            for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
-                if (it.value() == ChosenUser){
-                    messagingUsers.append(it.key());
-                    messagingUsers.append(socket);
-                    break;
-                }
+            if (it.key() == socket){
+                sender = it.value();
             }
-            SendToClient(str, messagingUsers);
-            break;
-        default:
-            break;
+        }
+        Message message;
+        message.content = str;
+        message.receiver = ChosenUser;
+        message.sender = sender;
+        messages.append(message);
+        SaveMessages();
+        SendToClient(str, messagingUsers);
+        break;
         };
 
+
 }
-void Server::SendAllowClients(QTcpSocket* clientSocket, QString Login){
+
+void Server::SaveMessages(){
+    QFile file("C:/Program Files (x86)/qt/SQLCHAT/Client/Server/Server/saver.json");
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning("Could not open file for writing.");
+        return;
+    }
+    QJsonArray jsonMessages;
+    for (const auto &message : messages) {
+        QJsonObject jsonMessage;
+        jsonMessage["sender"] = message.sender;
+        jsonMessage["receiver"] = message.receiver;
+        jsonMessage["content"] = message.content;
+        jsonMessages.append(jsonMessage);
+    }
+
+    QJsonDocument doc(jsonMessages);
+    file.write(doc.toJson());
+}
+void Server::loadMessages(){
+    QFile file("C:/Program Files (x86)/qt/SQLCHAT/Client/Server/Server/saver.json");
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning("Could not open file for reading.");
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    QJsonDocument doc(QJsonDocument::fromJson(data));
+    QJsonArray jsonMessages = doc.array();
+    for (const auto &jsonValue : jsonMessages) {
+        QJsonObject jsonMessage = jsonValue.toObject();
+        Message message;
+        message.sender = jsonMessage["sender"].toString();
+        message.receiver = jsonMessage["receiver"].toString();
+        message.content = jsonMessage["content"].toString();
+        messages.append(message);
+    }
+
+}
+void Server::SendAllowClients(QMap<QTcpSocket*,QString> Sockets){
     Data.clear();
-    this->AllowUsers.insert(Login);
     QDataStream out(&Data, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Version());
     out << 1 << AllowUsers;
-    clientSocket->write(Data);
-    clientSocket->waitForBytesWritten();
+    for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
+        it.key()->write(Data);
+        it.key()->waitForBytesWritten();
+    }
 }
 void Server::sockDisc(){
     qDebug() << "disc";
@@ -177,12 +229,26 @@ void Server::sockDisc(){
         this->AllowUsers.remove(Sockets[disconnectedSocket]);
         Sockets.remove(disconnectedSocket);
         disconnectedSocket->deleteLater();
-        for (auto it = Sockets.constBegin(); it != Sockets.constEnd(); ++it) {
-            SendAllowClients(it.key(), it.value());
-        }
+        SendAllowClients(this->Sockets);
+
     } else {
         qDebug() << "Error: Sender is not a QTcpSocket.";
     }
+}
+
+void Server::UpdateMessages(QTcpSocket* senderSock,QString sender, QString reciever){
+    Data.clear();
+    QString restoreMessage = "";
+    QDataStream out(&Data, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Version());
+    for (const auto& message : messages){
+
+        if ((message.sender == sender && message.receiver == reciever) || (message.sender == reciever && message.receiver == sender) ){
+            restoreMessage += message.content + "\n";
+        }
+    }
+    out << 2 << restoreMessage;
+    senderSock->write(Data);
 }
 
 void Server::SendToClient(QString str,QVector<QTcpSocket*> messagingUsers){

@@ -27,7 +27,6 @@ void Reg::sockReady(){
         this->LoginCheck = 0;
         SignUpButtonEn(this->LoginCheck, this->PassCheck);
     }
-
 }
 
 void Reg::on_Login_textEdited(const QString &arg1)
@@ -61,6 +60,12 @@ void Reg::SignUpButtonEn(const bool &LoginCheck, const bool &PassCheck){
 
 }
 
+void Reg::closeEvent(QCloseEvent *event){
+    event->accept();
+    this->check = 0;
+    this->Login = "";
+}
+
 void Reg::on_PasswordEDIT_textChanged(const QString &arg1)
 {
     this->pass1 = arg1;
@@ -87,7 +92,10 @@ void Reg::on_Password2Edit_textChanged(const QString &arg1)
 
 void Reg::on_CancleButton_clicked()
 {
-    close();
+    this->check = 0;
+    this->Login = "";
+    this->close();
+
 }
 
 
