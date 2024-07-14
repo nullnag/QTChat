@@ -93,6 +93,13 @@ void MainWindow::on_lineEdit_returnPressed()
 
 void MainWindow::on_listWidget_itemClicked(QListWidgetItem *item)
 {
+    ui->textBrowser->clear();
+    Data.clear();
     ChosenUser = item->text();
+    QDataStream out(&Data, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Version());
+    out << 3 << Login << ChosenUser;
+    socket->write(Data);
+
 }
 

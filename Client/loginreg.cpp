@@ -26,12 +26,16 @@ LoginReg::~LoginReg()
 
 void LoginReg::on_SignUpButton_clicked()
 {
+    this->Login = "";
+    ui->LoginEdit->clear();
     registry = new Reg(socket,this);
     registry->show();
     registry->exec();
+
 }
 
 void LoginReg::sockReady(){
+
     Data.clear();
     Data = socket->readAll();
     QDataStream stream(&Data,QIODevice::ReadOnly);
@@ -39,9 +43,7 @@ void LoginReg::sockReady(){
     qint32 requestNum;
     stream >> check >> requestNum;
     qDebug() << requestNum;
-    if  (check == 1 && requestNum == 3){
-        registry->check = 1;
-    }
+
     if (check == 1 && requestNum == 1){
         QMessageBox::information(nullptr,"Успех","Все верно");
         MainWindow *Main = new MainWindow;
@@ -49,9 +51,13 @@ void LoginReg::sockReady(){
         Main->show();
         this->close();
     }
+    else if  (check == 1 && requestNum == 3){
+        registry->check = 1;
+    }
     else if (check == 0 && requestNum == 1){
         QMessageBox::information(nullptr,"Ошибка","Неверный логин либо пароль");
     }
+
 }
 
 

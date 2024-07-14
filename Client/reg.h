@@ -1,6 +1,6 @@
 #ifndef REG_H
 #define REG_H
-
+#include <QCloseEvent>
 #include <QDialog>
 #include <QTcpSocket>
 
@@ -14,7 +14,7 @@ class Reg : public QDialog
 
 public:
     explicit Reg(QTcpSocket *socket,QWidget *parent = nullptr);
-    bool check = 0;
+    int check = 0;
     ~Reg();
 private:
     QTcpSocket* socket;
@@ -37,6 +37,7 @@ private slots:
 
     void on_SignUpButton_pressed();
 
+    void closeEvent(QCloseEvent *event) override;
 
     void sockReady();
 
